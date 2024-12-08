@@ -96,28 +96,34 @@ app.use((req, res) => {
   });
 });
 
+// 自定义错误类
+class APIError extends Error {
+  constructor(message, code = 'INTERNAL_ERROR', status = 500) {
+    super(message);
+    this.name = 'APIError';
+    this.code = code;
+    this.status = status;
+  }
+}
+
 // 统一错误处理
 app.use((err, req, res, next) => {
   console.error('API错误:', err);
+
+  // 确保错误是字符串
+  const errorMessage = err.message ? err.message.toString() : '服务器内部错误';
   
-  const statusCode = err.status || 500;
   const errorResponse = {
     success: false,
     error: {
       code: err.code || 'INTERNAL_ERROR',
-      message: err.message || '服务器内部错误',
+      message: errorMessage,
       details: process.env.NODE_ENV === 'development' ? err.stack : undefined
     }
   };
 
-  // 对特定错误类型进行处理
-  if (err.name === 'ValidationError') {
-    statusCode = 400;
-    errorResponse.error.code = 'VALIDATION_ERROR';
-  } else if (err.name === 'CompilationError') {
-    statusCode = 400;
-    errorResponse.error.code = 'COMPILATION_ERROR';
-  }
+  // 设置状态码
+  const statusCode = err.status || 500;
 
   res.status(statusCode).json(errorResponse);
 });
@@ -138,4 +144,4 @@ app.listen(PORT, () => {
   console.log(`API文档: http://localhost:${PORT}/api`);
 });
 
-module.exports = app; 
+module.exports = { app, APIError }; 
