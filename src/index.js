@@ -11,63 +11,72 @@ const testcaseRoutes = require('./routes/testcase');
 // 创建 Express 应用
 const app = express();
 
-// CORS配置
-const corsOptions = {
-  origin: '*', // 允许所有来源，生产环境建议设置具体域名
-  methods: ['GET', 'POST'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true,
-  optionsSuccessStatus: 200
-};
+// 基本中间件
+app.use(express.json({ limit: '50mb' }));  // 增加请求体大小限制
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// 中间件
+// 安全和CORS配置
 app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "https:"],
-    },
-  },
-  crossOriginResourcePolicy: { policy: "cross-origin" },
-  crossOriginEmbedderPolicy: false
+  contentSecurityPolicy: false,  // 禁用 CSP
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: false,
+  crossOriginOpenerPolicy: false,
 }));
-app.use(cors(corsOptions));
-app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
 
-// 添加根路由处理器
-app.get('/api', (req, res) => {
-  res.json({
-    message: 'API 运行正常',
-    endpoints: {
-      submissions: '/api/submissions',
-      testcases: '/api/testcases'
+// CORS配置
+app.use(cors({
+  origin: true,  // 允许所有来源
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  credentials: true,
+  maxAge: 86400  // CORS预检请求缓存24小时
+}));
+
+// 预处理OPTIONS请求
+app.options('*', cors());
+
+// API错误处理中间件
+app.use((err, req, res, next) => {
+  console.error('API错误:', err);
+  
+  // 确保返回JSON格式
+  res.setHeader('Content-Type', 'application/json');
+  
+  // 标准化错误响应
+  res.status(err.status || 500).json({
+    success: false,
+    error: {
+      message: err.message || '服务器内部错误',
+      type: err.name || 'InternalError',
+      details: process.env.NODE_ENV === 'development' ? err.stack : undefined
     }
   });
 });
 
-// API路由
-app.use('/api', submissionRoutes);
-app.use('/api/testcases', testcaseRoutes);
-
-// 所有其他路由返回前端页面
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+// API健康检查
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// 错误处理中间件
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ 
-    status: 'error',
-    message: err.message || '服务器错误'
-  });
+// API路由
+app.use('/api/submissions', submissionRoutes);  // 简化路由路径
+app.use('/api/testcases', testcaseRoutes);
+
+// 全局错误捕获
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('未处理的Promise拒绝:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('未捕获的异常:', error);
 });
 
 // 启动服务器
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`服务器运行在端口 ${PORT}`);
-}); 
+  console.log(`评测服务器运行在端口 ${PORT}`);
+  console.log(`API地址: http://localhost:${PORT}/api`);
+});
+
+// 导出app实例（用于测试）
+module.exports = app; 
