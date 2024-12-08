@@ -34,11 +34,10 @@ app.use(helmet({
   crossOriginOpenerPolicy: false
 }));
 
-// API路由 - 同时支持新旧路径
-app.use('/api/submissions', submissionRoutes);  // 旧路径
-app.use('/api/testcases', testcaseRoutes);     // 旧路径
-app.use('/api/v1/submissions', submissionRoutes); // 新路径
-app.use('/api/v1/testcases', testcaseRoutes);    // 新路径
+// 根路由 - 重定向到API文档
+app.get('/', (req, res) => {
+  res.redirect('/api');
+});
 
 // API文档路由
 app.get('/api', (req, res) => {
@@ -47,6 +46,8 @@ app.get('/api', (req, res) => {
     data: {
       name: 'Online Judge API',
       version: '1.0.0',
+      description: 'C++代码在线评测系统',
+      baseUrl: 'https://apioi-production.up.railway.app',
       endpoints: {
         submissions: {
           submit: {
@@ -60,10 +61,11 @@ app.get('/api', (req, res) => {
                 output: 'string'
               }]
             },
-            response: {
-              id: 'string',
-              status: 'enum(pending|AC|WA|TLE|RE|CE)',
-              testResults: 'array'
+            example: {
+              request: {
+                code: '#include <iostream>\nint main() { int a,b; std::cin>>a>>b; std::cout<<a+b; return 0; }',
+                testcases: [{ input: '1 2', output: '3' }]
+              }
             }
           },
           getAll: {
@@ -77,6 +79,10 @@ app.get('/api', (req, res) => {
   });
 });
 
+// API路由
+app.use('/api/submissions', submissionRoutes);
+app.use('/api/testcases', testcaseRoutes);
+
 // 404处理
 app.use((req, res) => {
   res.status(404).json({
@@ -84,7 +90,8 @@ app.use((req, res) => {
     error: {
       code: 'NOT_FOUND',
       message: '未找到请求的资源',
-      path: req.path
+      path: req.path,
+      suggestion: '请访问 /api 查看API文档'
     }
   });
 });
