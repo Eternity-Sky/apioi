@@ -55,10 +55,12 @@ int main() {
     std::cout << "Hello World!";
     return 0;
 }</textarea>
-    <button onclick="submitCode()">提交代码</button>
+    <button id="submitBtn">提交代码</button>
     <div id="output"></div>
 
     <script>
+        document.getElementById('submitBtn').addEventListener('click', submitCode);
+
         async function submitCode() {
             const code = document.getElementById('code').value;
             const output = document.getElementById('output');
