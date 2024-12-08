@@ -12,12 +12,12 @@ const testcaseRoutes = require('./routes/testcase');
 const app = express();
 
 // 基本中间件
-app.use(express.json({ limit: '50mb' }));  // 增加请求体大小限制
+app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // 安全和CORS配置
 app.use(helmet({
-  contentSecurityPolicy: false,  // 禁用 CSP
+  contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false,
   crossOriginResourcePolicy: false,
   crossOriginOpenerPolicy: false,
@@ -25,24 +25,77 @@ app.use(helmet({
 
 // CORS配置
 app.use(cors({
-  origin: true,  // 允许所有来源
+  origin: true,
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   credentials: true,
-  maxAge: 86400  // CORS预检请求缓存24小时
+  maxAge: 86400
 }));
 
 // 预处理OPTIONS请求
 app.options('*', cors());
 
+// 根路由 - API文档
+app.get('/', (req, res) => {
+  res.json({
+    name: 'Code Judge API',
+    version: '1.0.0',
+    endpoints: {
+      health: '/api/health',
+      submissions: '/api/submissions',
+      testcases: '/api/testcases'
+    },
+    documentation: {
+      submitCode: {
+        method: 'POST',
+        url: '/api/submissions',
+        body: {
+          code: 'string (C++ code)',
+          testcases: [{
+            input: 'string',
+            output: 'string'
+          }]
+        }
+      },
+      getSubmissions: {
+        method: 'GET',
+        url: '/api/submissions'
+      }
+    }
+  });
+});
+
+// API健康检查
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    service: 'code-judge-api'
+  });
+});
+
+// API路由
+app.use('/api/submissions', submissionRoutes);
+app.use('/api/testcases', testcaseRoutes);
+
+// 404处理
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    error: {
+      message: '未找到请求的资源',
+      type: 'NotFoundError',
+      path: req.path
+    }
+  });
+});
+
 // API错误处理中间件
 app.use((err, req, res, next) => {
   console.error('API错误:', err);
   
-  // 确保返回JSON格式
   res.setHeader('Content-Type', 'application/json');
   
-  // 标准化错误响应
   res.status(err.status || 500).json({
     success: false,
     error: {
@@ -52,15 +105,6 @@ app.use((err, req, res, next) => {
     }
   });
 });
-
-// API健康检查
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-// API路由
-app.use('/api/submissions', submissionRoutes);  // 简化路由路径
-app.use('/api/testcases', testcaseRoutes);
 
 // 全局错误捕获
 process.on('unhandledRejection', (reason, promise) => {
@@ -75,8 +119,8 @@ process.on('uncaughtException', (error) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`评测服务器运行在端口 ${PORT}`);
-  console.log(`API地址: http://localhost:${PORT}/api`);
+  console.log(`API文档: http://localhost:${PORT}/`);
+  console.log(`健康检查: http://localhost:${PORT}/api/health`);
 });
 
-// 导出app实例（用于测试）
 module.exports = app; 
