@@ -1,7 +1,8 @@
-const Docker = require('dockerode');
-const docker = new Docker();
+const { exec } = require('child_process');
 const fs = require('fs').promises;
 const path = require('path');
+const util = require('util');
+const execAsync = util.promisify(exec);
 
 // 使用内存存储
 const submissions = [];
@@ -51,58 +52,25 @@ async function runCode(submission) {
     console.log('写入源代码文件');
     await fs.writeFile(sourceFile, submission.code);
     
-    console.log('创建Docker容器');
-    const container = await docker.createContainer({
-      Image: 'gcc:latest',
-      Cmd: [
-        'sh', '-c',
-        `g++ -O2 -std=c++17 ${sourceFile} -o ${execFile} && ${execFile}`
-      ],
-      HostConfig: {
-        Binds: [`${tempDir}:${tempDir}`],
-        NetworkDisabled: true,
-        Memory: 256 * 1024 * 1024,
-        MemorySwap: 256 * 1024 * 1024,
-        CpuPeriod: 100000,
-        CpuQuota: 10000,
-        PidsLimit: 50,
-        AutoRemove: true
-      },
-      WorkingDir: tempDir,
-      Tty: true,
-      StopTimeout: 5
-    });
+    console.log('编译代码');
+    await execAsync(`g++ -O2 -std=c++17 ${sourceFile} -o ${execFile}`);
 
-    console.log('启动容器');
-    await container.start();
-
-    console.log('等待执行完成');
-    const result = await container.wait();
-    
-    console.log('获取输出');
-    const output = await container.logs({
-      stdout: true,
-      stderr: true
+    console.log('运行代码');
+    const { stdout, stderr } = await execAsync(execFile, {
+      timeout: 5000, // 5秒超时
+      maxBuffer: 1024 * 1024 // 1MB输出限制
     });
 
     console.log('更新提交状态');
-    submission.status = result.StatusCode === 0 ? 'success' : 'error';
-    submission.output = output.toString();
+    submission.status = 'success';
+    submission.output = stdout;
+    if (stderr) {
+      submission.error = stderr;
+    }
     submission.executionTime = Date.now() - new Date(submission.createdAt).getTime();
 
-    try {
-      console.log('清理容器');
-      await container.remove();
-    } catch (e) {
-      console.error('清理容器失败:', e);
-    }
-
-    try {
-      console.log('清理临时文件');
-      await fs.rm(tempDir, { recursive: true, force: true });
-    } catch (e) {
-      console.error('清理临时文件失败:', e);
-    }
+    console.log('清理临时文件');
+    await fs.rm(tempDir, { recursive: true, force: true });
   } catch (error) {
     console.error('代码评测过程错误:', error);
     submission.status = 'error';
