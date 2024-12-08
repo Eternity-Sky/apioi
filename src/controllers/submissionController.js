@@ -7,12 +7,18 @@ const execAsync = util.promisify(exec);
 // 使用内存存储
 const submissions = [];
 
-exports.createSubmission = async (req, res) => {
+exports.createSubmission = async (req, res, next) => {
   try {
     const { code, testcases } = req.body;
     
     if (!code) {
-      return res.status(400).json({ message: '缺少代码' });
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'MISSING_CODE',
+          message: '缺少代码'
+        }
+      });
     }
 
     // 创建提交记录
@@ -28,15 +34,20 @@ exports.createSubmission = async (req, res) => {
 
     // 异步执行代码评测
     runCode(submission, testcases || [{ input: '', output: '' }]).catch(error => {
-      console.error('代码评测错误:', error);
       submission.status = 'error';
-      submission.error = error.message;
+      submission.error = typeof error === 'string' ? error : error.message || '评测系统错误';
     });
 
-    res.status(201).json(submission);
+    res.status(201).json({
+      success: true,
+      data: submission
+    });
   } catch (error) {
-    console.error('创建提交错误:', error);
-    res.status(500).json({ message: error.message });
+    next({
+      code: 'SUBMISSION_ERROR',
+      message: typeof error === 'string' ? error : error.message || '提交处理失败',
+      status: 500
+    });
   }
 };
 

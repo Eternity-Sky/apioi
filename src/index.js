@@ -110,20 +110,36 @@ class APIError extends Error {
 app.use((err, req, res, next) => {
   console.error('API错误:', err);
 
-  // 确保错误是字符串
-  const errorMessage = err.message ? err.message.toString() : '服务器内部错误';
-  
+  // 如果错误是对象，尝试提取有用信息
+  let errorMessage = '服务器内部错误';
+  let errorCode = 'INTERNAL_ERROR';
+  let statusCode = 500;
+
+  if (err) {
+    if (typeof err === 'string') {
+      errorMessage = err;
+    } else if (err instanceof Error) {
+      errorMessage = err.message || errorMessage;
+      errorCode = err.code || errorCode;
+      statusCode = err.status || statusCode;
+    } else if (typeof err === 'object') {
+      errorMessage = err.message || JSON.stringify(err);
+      errorCode = err.code || errorCode;
+      statusCode = err.status || statusCode;
+    }
+  }
+
   const errorResponse = {
     success: false,
     error: {
-      code: err.code || 'INTERNAL_ERROR',
-      message: errorMessage,
-      details: process.env.NODE_ENV === 'development' ? err.stack : undefined
+      code: errorCode,
+      message: errorMessage
     }
   };
 
-  // 设置状态码
-  const statusCode = err.status || 500;
+  if (process.env.NODE_ENV === 'development') {
+    errorResponse.error.stack = err.stack;
+  }
 
   res.status(statusCode).json(errorResponse);
 });
