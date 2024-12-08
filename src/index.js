@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const path = require('path');
 
 // 导入路由
 const submissionRoutes = require('./routes/submission');
@@ -14,9 +15,10 @@ const app = express();
 app.use(helmet());
 app.use(cors());
 app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
 // 添加根路由处理器
-app.get('/', (req, res) => {
+app.get('/api', (req, res) => {
   res.json({
     message: 'API 运行正常',
     endpoints: {
@@ -26,9 +28,14 @@ app.get('/', (req, res) => {
   });
 });
 
-// 路由
+// API路由
 app.use('/api', submissionRoutes);
 app.use('/api/testcases', testcaseRoutes);
+
+// 所有其他路由返回前端页面
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 // 错误处理中间件
 app.use((err, req, res, next) => {
