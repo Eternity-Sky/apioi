@@ -15,6 +15,17 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
+// 添加根路由处理器
+app.get('/', (req, res) => {
+  res.json({
+    message: 'API 运行正常',
+    endpoints: {
+      submissions: '/api/submissions',
+      testcases: '/api/testcases'
+    }
+  });
+});
+
 // 路由
 app.use('/api', submissionRoutes);
 app.use('/api/testcases', testcaseRoutes);
