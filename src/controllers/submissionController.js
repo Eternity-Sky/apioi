@@ -9,7 +9,7 @@ const submissions = [];
 
 exports.createSubmission = async (req, res) => {
   try {
-    const { code } = req.body;
+    const { code, testcases } = req.body;
     
     if (!code) {
       return res.status(400).json({ message: '缺少代码' });
@@ -21,12 +21,13 @@ exports.createSubmission = async (req, res) => {
       code,
       language: 'cpp',
       status: 'pending',
+      testResults: [],
       createdAt: new Date()
     };
     submissions.push(submission);
 
     // 异步执行代码评测
-    runCode(submission).catch(error => {
+    runCode(submission, testcases || [{ input: '', output: '' }]).catch(error => {
       console.error('代码评测错误:', error);
       submission.status = 'error';
       submission.error = error.message;
@@ -40,10 +41,11 @@ exports.createSubmission = async (req, res) => {
 };
 
 // 代码评测函数
-async function runCode(submission) {
+async function runCode(submission, testcases) {
   const tempDir = path.join(process.cwd(), 'temp', `code-${submission.id}`);
   const sourceFile = path.join(tempDir, 'main.cpp');
   const execFile = path.join(tempDir, 'main');
+  const inputFile = path.join(tempDir, 'input.txt');
 
   try {
     console.log('创建临时目录:', tempDir);
@@ -53,27 +55,69 @@ async function runCode(submission) {
     await fs.writeFile(sourceFile, submission.code);
     
     console.log('编译代码');
-    await execAsync(`g++ -O2 -std=c++17 ${sourceFile} -o ${execFile}`);
-
-    console.log('运行代码');
-    const { stdout, stderr } = await execAsync(execFile, {
-      timeout: 5000, // 5秒超时
-      maxBuffer: 1024 * 1024 // 1MB输出限制
-    });
-
-    console.log('更新提交状态');
-    submission.status = 'success';
-    submission.output = stdout;
-    if (stderr) {
-      submission.error = stderr;
+    const { stderr: compileError } = await execAsync(`g++ -O2 -std=c++17 -Wall ${sourceFile} -o ${execFile}`);
+    
+    if (compileError) {
+      throw new Error(`编译错误:\n${compileError}`);
     }
-    submission.executionTime = Date.now() - new Date(submission.createdAt).getTime();
+
+    submission.testResults = [];
+    let allPassed = true;
+
+    // 运行每个测试用例
+    for (let i = 0; i < testcases.length; i++) {
+      const testcase = testcases[i];
+      console.log(`运行测试用例 ${i + 1}`);
+      
+      // 写入输入文件
+      await fs.writeFile(inputFile, testcase.input);
+
+      try {
+        const startTime = process.hrtime();
+        const { stdout, stderr } = await execAsync(`${execFile} < ${inputFile}`, {
+          timeout: 1000, // 1秒超时
+          maxBuffer: 1024 * 1024 // 1MB输出限制
+        });
+        const [seconds, nanoseconds] = process.hrtime(startTime);
+        const executionTime = seconds * 1000 + nanoseconds / 1000000; // 转换为毫秒
+
+        const result = {
+          testcase: i + 1,
+          input: testcase.input,
+          expectedOutput: testcase.output,
+          actualOutput: stdout.trim(),
+          time: executionTime,
+          status: stdout.trim() === testcase.output.trim() ? 'AC' : 'WA'
+        };
+
+        if (stderr) {
+          result.error = stderr;
+        }
+
+        submission.testResults.push(result);
+        if (result.status !== 'AC') {
+          allPassed = false;
+        }
+      } catch (error) {
+        submission.testResults.push({
+          testcase: i + 1,
+          input: testcase.input,
+          expectedOutput: testcase.output,
+          error: error.message,
+          status: error.code === 'ETIMEDOUT' ? 'TLE' : 'RE'
+        });
+        allPassed = false;
+      }
+    }
+
+    submission.status = allPassed ? 'AC' : 'WA';
+    submission.executionTime = Math.max(...submission.testResults.map(r => r.time || 0));
 
     console.log('清理临时文件');
     await fs.rm(tempDir, { recursive: true, force: true });
   } catch (error) {
     console.error('代码评测过程错误:', error);
-    submission.status = 'error';
+    submission.status = 'CE';
     submission.error = error.message;
     try {
       await fs.rm(tempDir, { recursive: true, force: true });
