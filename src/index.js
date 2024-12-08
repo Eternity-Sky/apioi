@@ -2,7 +2,6 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
-const connectDB = require('./config/database');
 
 // 导入路由
 const submissionRoutes = require('./routes/submission');
@@ -10,9 +9,6 @@ const testcaseRoutes = require('./routes/testcase');
 
 // 创建 Express 应用
 const app = express();
-
-// 连接数据库
-connectDB();
 
 // 中间件
 app.use(helmet());
