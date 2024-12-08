@@ -2,7 +2,6 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
-const path = require('path');
 
 // 导入路由
 const submissionRoutes = require('./routes/submission');
@@ -15,95 +14,118 @@ const app = express();
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// 安全和CORS配置
-app.use(helmet({
-  contentSecurityPolicy: false,
-  crossOriginEmbedderPolicy: false,
-  crossOriginResourcePolicy: false,
-  crossOriginOpenerPolicy: false,
-}));
-
 // CORS配置
 app.use(cors({
-  origin: true,
+  origin: '*',
   methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  credentials: true,
+  allowedHeaders: '*',
+  credentials: false,
   maxAge: 86400
 }));
 
 // 预处理OPTIONS请求
 app.options('*', cors());
 
-// 根路由 - API文档
-app.get('/', (req, res) => {
+// 安全配置
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  crossOriginOpenerPolicy: false
+}));
+
+// API版本前缀
+const API_PREFIX = '/api/v1';
+
+// API路由
+app.use(`${API_PREFIX}/submissions`, submissionRoutes);
+app.use(`${API_PREFIX}/testcases`, testcaseRoutes);
+
+// API文档路由
+app.get(API_PREFIX, (req, res) => {
   res.json({
-    name: 'Code Judge API',
-    version: '1.0.0',
-    endpoints: {
-      health: '/api/health',
-      submissions: '/api/submissions',
-      testcases: '/api/testcases'
-    },
-    documentation: {
-      submitCode: {
-        method: 'POST',
-        url: '/api/submissions',
-        body: {
-          code: 'string (C++ code)',
-          testcases: [{
-            input: 'string',
-            output: 'string'
-          }]
+    success: true,
+    data: {
+      name: 'Online Judge API',
+      version: '1.0.0',
+      endpoints: {
+        submissions: {
+          submit: {
+            method: 'POST',
+            url: `${API_PREFIX}/submissions`,
+            description: '提交代码进行评测',
+            body: {
+              code: 'string (C++ code)',
+              testcases: [{
+                input: 'string',
+                output: 'string'
+              }]
+            },
+            response: {
+              id: 'string',
+              status: 'enum(pending|AC|WA|TLE|RE|CE)',
+              testResults: 'array'
+            }
+          },
+          getAll: {
+            method: 'GET',
+            url: `${API_PREFIX}/submissions`,
+            description: '获取所有提交记录'
+          }
+        },
+        testcases: {
+          create: {
+            method: 'POST',
+            url: `${API_PREFIX}/testcases`,
+            description: '创建测试用例'
+          },
+          getAll: {
+            method: 'GET',
+            url: `${API_PREFIX}/testcases`,
+            description: '获取所有测试用例'
+          }
         }
-      },
-      getSubmissions: {
-        method: 'GET',
-        url: '/api/submissions'
       }
     }
   });
 });
-
-// API健康检查
-app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
-    timestamp: new Date().toISOString(),
-    service: 'code-judge-api'
-  });
-});
-
-// API路由
-app.use('/api/submissions', submissionRoutes);
-app.use('/api/testcases', testcaseRoutes);
 
 // 404处理
 app.use((req, res) => {
   res.status(404).json({
     success: false,
     error: {
+      code: 'NOT_FOUND',
       message: '未找到请求的资源',
-      type: 'NotFoundError',
       path: req.path
     }
   });
 });
 
-// API错误处理中间件
+// 统一错误处理
 app.use((err, req, res, next) => {
   console.error('API错误:', err);
   
-  res.setHeader('Content-Type', 'application/json');
-  
-  res.status(err.status || 500).json({
+  const statusCode = err.status || 500;
+  const errorResponse = {
     success: false,
     error: {
+      code: err.code || 'INTERNAL_ERROR',
       message: err.message || '服务器内部错误',
-      type: err.name || 'InternalError',
       details: process.env.NODE_ENV === 'development' ? err.stack : undefined
     }
-  });
+  };
+
+  // 对特定错误类型进行处理
+  if (err.name === 'ValidationError') {
+    statusCode = 400;
+    errorResponse.error.code = 'VALIDATION_ERROR';
+  } else if (err.name === 'CompilationError') {
+    statusCode = 400;
+    errorResponse.error.code = 'COMPILATION_ERROR';
+  }
+
+  res.status(statusCode).json(errorResponse);
 });
 
 // 全局错误捕获
@@ -119,8 +141,7 @@ process.on('uncaughtException', (error) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`评测服务器运行在端口 ${PORT}`);
-  console.log(`API文档: http://localhost:${PORT}/`);
-  console.log(`健康检查: http://localhost:${PORT}/api/health`);
+  console.log(`API文档: http://localhost:${PORT}${API_PREFIX}`);
 });
 
 module.exports = app; 
