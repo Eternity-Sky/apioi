@@ -27,6 +27,14 @@ app.use((err, req, res, next) => {
 
 // 启动服务器
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`服务器运行在端口 ${PORT}`);
-}); 
+
+// Vercel 环境检查
+if (process.env.VERCEL) {
+  // 导出 app 以供 Vercel 使用
+  module.exports = app;
+} else {
+  // 本地开发环境
+  app.listen(PORT, () => {
+    console.log(`服务器运行在端口 ${PORT}`);
+  });
+} 
