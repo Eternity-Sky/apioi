@@ -1,0 +1,36 @@
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+const connectDB = require('./config/database');
+
+// 导入路由
+const submissionRoutes = require('./routes/submission');
+const testcaseRoutes = require('./routes/testcase');
+
+// 创建 Express 应用
+const app = express();
+
+// 连接数据库
+connectDB();
+
+// 中间件
+app.use(helmet());
+app.use(cors());
+app.use(express.json());
+
+// 路由
+app.use('/api', submissionRoutes);
+app.use('/api/testcases', testcaseRoutes);
+
+// 错误处理中间件
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ message: '服务器错误' });
+});
+
+// 启动服务器
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`服务器运行在端口 ${PORT}`);
+}); 
