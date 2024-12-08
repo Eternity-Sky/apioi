@@ -34,15 +34,14 @@ app.use(helmet({
   crossOriginOpenerPolicy: false
 }));
 
-// API版本前缀
-const API_PREFIX = '/api/v1';
-
-// API路由
-app.use(`${API_PREFIX}/submissions`, submissionRoutes);
-app.use(`${API_PREFIX}/testcases`, testcaseRoutes);
+// API路由 - 同时支持新旧路径
+app.use('/api/submissions', submissionRoutes);  // 旧路径
+app.use('/api/testcases', testcaseRoutes);     // 旧路径
+app.use('/api/v1/submissions', submissionRoutes); // 新路径
+app.use('/api/v1/testcases', testcaseRoutes);    // 新路径
 
 // API文档路由
-app.get(API_PREFIX, (req, res) => {
+app.get('/api', (req, res) => {
   res.json({
     success: true,
     data: {
@@ -52,7 +51,7 @@ app.get(API_PREFIX, (req, res) => {
         submissions: {
           submit: {
             method: 'POST',
-            url: `${API_PREFIX}/submissions`,
+            url: '/api/submissions',
             description: '提交代码进行评测',
             body: {
               code: 'string (C++ code)',
@@ -69,20 +68,8 @@ app.get(API_PREFIX, (req, res) => {
           },
           getAll: {
             method: 'GET',
-            url: `${API_PREFIX}/submissions`,
+            url: '/api/submissions',
             description: '获取所有提交记录'
-          }
-        },
-        testcases: {
-          create: {
-            method: 'POST',
-            url: `${API_PREFIX}/testcases`,
-            description: '创建测试用例'
-          },
-          getAll: {
-            method: 'GET',
-            url: `${API_PREFIX}/testcases`,
-            description: '获取所有测试用例'
           }
         }
       }
@@ -141,7 +128,7 @@ process.on('uncaughtException', (error) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`评测服务器运行在端口 ${PORT}`);
-  console.log(`API文档: http://localhost:${PORT}${API_PREFIX}`);
+  console.log(`API文档: http://localhost:${PORT}/api`);
 });
 
 module.exports = app; 
