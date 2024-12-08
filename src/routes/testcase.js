@@ -1,22 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const {
-  getTestCases,
-  createTestCase
-} = require('../controllers/testcaseController');
+const testcaseController = require('../controllers/testcaseController');
 
-// 中间件函数：检查是否是管理员
-const isAdmin = (req, res, next) => {
-  if (!req.user || !req.user.isAdmin) {
-    return res.status(403).json({ message: '需要管理员权限' });
-  }
-  next();
-};
+// GET /api/testcases - 获取所有测试用例
+router.get('/', testcaseController.getTestcases);
 
-// 获取公开测试用例
-router.get('/:problemId', getTestCases);
-
-// 管理员添加测试用例
-router.post('/', isAdmin, createTestCase);
+// POST /api/testcases - 创建新测试用例
+router.post('/', testcaseController.createTestcase);
 
 module.exports = router; 
