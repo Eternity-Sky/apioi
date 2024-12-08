@@ -11,6 +11,15 @@ const testcaseRoutes = require('./routes/testcase');
 // 创建 Express 应用
 const app = express();
 
+// CORS配置
+const corsOptions = {
+  origin: '*', // 允许所有来源，生产环境建议设置具体域名
+  methods: ['GET', 'POST'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+
 // 中间件
 app.use(helmet({
   contentSecurityPolicy: {
@@ -21,8 +30,10 @@ app.use(helmet({
       imgSrc: ["'self'", "data:", "https:"],
     },
   },
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  crossOriginEmbedderPolicy: false
 }));
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -49,7 +60,10 @@ app.get('*', (req, res) => {
 // 错误处理中间件
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(500).json({ message: '服务器错误' });
+  res.status(500).json({ 
+    status: 'error',
+    message: err.message || '服务器错误'
+  });
 });
 
 // 启动服务器
